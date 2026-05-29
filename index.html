@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RSI + MFI Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #080b10;
+    --bg2:       #0d1117;
+    --bg3:       #111820;
+    --border:    #1e2d3d;
+    --accent:    #00d4ff;
+    --accent2:   #0088aa;
+    --green:     #00ff88;
+    --red:       #ff3355;
+    --yellow:    #ffd700;
+    --orange:    #ff8c00;
+    --neutral:   #6b8299;
+    --text:      #c9d8e8;
+    --text-dim:  #4a6070;
+    --mono:      'Share Tech Mono', monospace;
+    --ui:        'Rajdhani', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--ui);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid bg */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow orb */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -200px; left: 50%;
+    transform: translateX(-50%);
+    width: 600px; height: 400px;
+    background: radial-gradient(ellipse, rgba(0,212,255,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 16px 60px;
+  }
+
+  /* ── HEADER ── */
+  header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--accent2);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #fff;
+    line-height: 1;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  /* ── SEARCH ── */
+  .search-wrap {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 32px;
+    position: relative;
+  }
+
+  .search-box {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-family: var(--mono);
+    font-size: 16px;
+    color: #fff;
+    letter-spacing: 2px;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+
+  .search-box:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 20px rgba(0,212,255,0.1);
+  }
+
+  .search-box::placeholder { color: var(--text-dim); letter-spacing: 1px; font-size: 14px; }
+
+  .btn-track {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    padding: 14px 28px;
+    font-family: var(--ui);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: background .15s, transform .1s, box-shadow .2s;
+    white-space: nowrap;
+  }
+
+  .btn-track:hover {
+    background: #33dfff;
+    box-shadow: 0 0 20px rgba(0,212,255,0.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-track:active { transform: translateY(0); }
+  .btn-track:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Suggestions dropdown */
+  .suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 80px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    z-index: 100;
+    display: none;
+  }
+
+  .suggestions.show { display: block; }
+
+  .sugg-item {
+    padding: 10px 18px;
+    cursor: pointer;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    transition: background .15s;
+  }
+
+  .sugg-item:last-child { border-bottom: none; }
+  .sugg-item:hover { background: var(--bg2); }
+
+  .sugg-symbol {
+    font-family: var(--mono);
+    color: var(--accent);
+    font-size: 14px;
+    min-width: 60px;
+  }
+
+  .sugg-name { font-size: 13px; color: var(--text-dim); }
+
+  /* ── COIN INFO BAR ── */
+  .coin-bar {
+    display: none;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 24px;
+    margin-bottom: 24px;
+    display: none;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .coin-bar.visible { display: flex; }
+
+  .coin-ticker {
+    font-family: var(--mono);
+    font-size: 22px;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+
+  .coin-price {
+    font-family: var(--mono);
+    font-size: 20px;
+    color: #fff;
+  }
+
+  .coin-meta {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .refresh-info {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .countdown {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent2);
+  }
+
+  /* ── LIVE DOT ── */
+  .live-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+
+  .live-dot::before {
+    content: '';
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 1.4s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  /* ── TIMEFRAME CARDS ── */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity .4s, transform .4s, border-color .3s;
+  }
+
+  .card.loaded {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .card:hover { border-color: var(--accent2); }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity .3s;
+  }
+
+  .card:hover::before { opacity: 1; }
+
+  .card-tf {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent2);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .card-label {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+  }
+
+  /* indicator row */
+  .ind-row {
+    margin-bottom: 16px;
+  }
+
+  .ind-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+
+  .ind-name {
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .ind-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    color: #fff;
+    transition: color .3s;
+  }
+
+  .ind-value.red    { color: var(--red); }
+  .ind-value.green  { color: var(--green); }
+  .ind-value.yellow { color: var(--yellow); }
+  .ind-value.orange { color: var(--orange); }
+
+  /* Progress bar */
+  .bar-track {
+    height: 5px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width .8s cubic-bezier(.4,0,.2,1), background .4s;
+    position: relative;
+  }
+
+  .bar-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.6);
+  }
+
+  .bar-fill.neutral { background: linear-gradient(90deg, #1e3a4a, #2d6080); }
+  .bar-fill.green   { background: linear-gradient(90deg, #004422, var(--green)); }
+  .bar-fill.red     { background: linear-gradient(90deg, #440011, var(--red)); }
+  .bar-fill.yellow  { background: linear-gradient(90deg, #443300, var(--yellow)); }
+  .bar-fill.orange  { background: linear-gradient(90deg, #442200, var(--orange)); }
+
+  /* Zone markers */
+  .bar-markers {
+    position: relative;
+    height: 12px;
+    margin-top: 2px;
+  }
+
+  .bar-marker {
+    position: absolute;
+    font-size: 9px;
+    color: var(--text-dim);
+    transform: translateX(-50%);
+    font-family: var(--mono);
+  }
+
+  .ind-signal {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .ind-signal.red    { color: var(--red); }
+  .ind-signal.green  { color: var(--green); }
+  .ind-signal.yellow { color: var(--yellow); }
+  .ind-signal.orange { color: var(--orange); }
+  .ind-signal.neutral { color: var(--text-dim); }
+
+  /* ── LOADING STATE ── */
+  .skeleton .ind-value {
+    background: var(--border);
+    color: transparent;
+    border-radius: 4px;
+    animation: shimmer 1.5s infinite;
+  }
+
+  .skeleton .bar-fill { animation: shimmer 1.5s infinite; background: var(--border); }
+
+  @keyframes shimmer {
+    0%, 100% { opacity: 0.4; }
+    50%       { opacity: 0.8; }
+  }
+
+  /* ── ERROR / STATUS ── */
+  .status-msg {
+    text-align: center;
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--red);
+    display: none;
+  }
+
+  .status-msg.show { display: block; }
+
+  /* ── LAST UPDATED ── */
+  .last-update {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    letter-spacing: 1px;
+    margin-top: 8px;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    margin-top: 48px;
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  /* ── MOBILE ── */
+  @media (max-width: 500px) {
+    .cards-grid { grid-template-columns: 1fr; }
+    .search-wrap { flex-wrap: wrap; }
+    .btn-track { width: 100%; }
+    .coin-meta { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">◈ Live Indicator Tracker ◈</div>
+    <h1>RSI <span>&</span> MFI</h1>
+    <div class="subtitle">CoinGecko Data · TradingView Formula · 5 Min Auto-Refresh</div>
+  </header>
+
+  <!-- Search -->
+  <div class="search-wrap">
+    <input id="coinInput" class="search-box" type="text"
+           placeholder="Coin daalo: BTC, ETH, SOL..."
+           autocomplete="off" spellcheck="false">
+    <div class="suggestions" id="suggestions"></div>
+    <button class="btn-track" id="trackBtn" onclick="startTracking()">TRACK</button>
+  </div>
+
+  <!-- Coin info bar -->
+  <div class="coin-bar" id="coinBar">
+    <div>
+      <div class="coin-ticker" id="barTicker">—</div>
+      <div style="font-size:12px;color:var(--text-dim);letter-spacing:1px">USDT Pair</div>
+    </div>
+    <div>
+      <div class="coin-price" id="barPrice">—</div>
+      <div style="font-size:12px;color:var(--text-dim)">Live Price</div>
+    </div>
+    <div class="coin-meta">
+      <div class="live-dot">LIVE</div>
+      <div class="refresh-info">Auto-refresh: 5 min</div>
+      <div class="countdown" id="countdown">Next: —</div>
+    </div>
+  </div>
+
+  <!-- Error msg -->
+  <div class="status-msg" id="statusMsg"></div>
+
+  <!-- Cards -->
+  <div class="cards-grid" id="cardsGrid"></div>
+
+  <!-- Last updated -->
+  <div class="last-update" id="lastUpdate"></div>
+
+  <footer>
+    Data: CoinGecko API &nbsp;·&nbsp; Indicators: Wilder's RSI + MFI &nbsp;·&nbsp; Period: 14
+  </footer>
+
+</div>
+
+<script>
+const TIMEFRAMES = ["15m","1H","4H"];
+const TF_LABELS  = {"15m":"15 Min","1H":"1 Hour","4H":"4 Hour"};
+
+let currentCoin = "";
+let refreshTimer = null;
+let countdownTimer = null;
+let secondsLeft = 300;
+
+// ── Search with debounce ──
+let searchTimeout;
+document.getElementById("coinInput").addEventListener("input", e => {
+  clearTimeout(searchTimeout);
+  const q = e.target.value.trim();
+  if (q.length < 2) { hideSuggestions(); return; }
+  searchTimeout = setTimeout(() => fetchSuggestions(q), 400);
+});
+
+document.getElementById("coinInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") startTracking();
+});
+
+async function fetchSuggestions(q) {
+  try {
+    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const coins = await r.json();
+    showSuggestions(coins);
+  } catch(e) { hideSuggestions(); }
+}
+
+function showSuggestions(coins) {
+  const el = document.getElementById("suggestions");
+  if (!coins.length) { hideSuggestions(); return; }
+  el.innerHTML = coins.map(c => `
+    <div class="sugg-item" onclick="selectCoin('${c.symbol}')">
+      <span class="sugg-symbol">${c.symbol}</span>
+      <span class="sugg-name">${c.name}</span>
+    </div>
+  `).join("");
+  el.classList.add("show");
+}
+
+function hideSuggestions() {
+  document.getElementById("suggestions").classList.remove("show");
+}
+
+function selectCoin(symbol) {
+  document.getElementById("coinInput").value = symbol;
+  hideSuggestions();
+  startTracking();
+}
+
+document.addEventListener("click", e => {
+  if (!e.target.closest(".search-wrap")) hideSuggestions();
+});
+
+// ── Tracking ──
+function startTracking() {
+  const coin = document.getElementById("coinInput").value.trim().toUpperCase();
+  if (!coin) return;
+
+  if (refreshTimer)   clearInterval(refreshTimer);
+  if (countdownTimer) clearInterval(countdownTimer);
+
+  currentCoin = coin;
+  document.getElementById("trackBtn").disabled = true;
+  hideSuggestions();
+
+  renderSkeletons();
+  fetchAndUpdate();
+
+  secondsLeft = 300;
+  startCountdown();
+
+  refreshTimer = setInterval(() => {
+    fetchAndUpdate();
+    secondsLeft = 300;
+  }, 300000);
+}
+
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  updateCountdownDisplay();
+  countdownTimer = setInterval(() => {
+    secondsLeft--;
+    if (secondsLeft < 0) secondsLeft = 300;
+    updateCountdownDisplay();
+  }, 1000);
+}
+
+function updateCountdownDisplay() {
+  const m = Math.floor(secondsLeft / 60);
+  const s = secondsLeft % 60;
+  document.getElementById("countdown").textContent =
+    `Next: ${m}:${s.toString().padStart(2,"0")}`;
+}
+
+async function fetchAndUpdate() {
+  try {
+    const r = await fetch(`/api/indicators?coin=${encodeURIComponent(currentCoin)}`);
+    const data = await r.json();
+
+    document.getElementById("trackBtn").disabled = false;
+    hideError();
+
+    if (data.error) {
+      showError(data.error);
+      return;
+    }
+
+    updateCoinBar(data);
+    renderCards(data);
+
+    const now = new Date();
+    document.getElementById("lastUpdate").textContent =
+      `Last updated: ${now.toLocaleTimeString()}`;
+
+  } catch(e) {
+    document.getElementById("trackBtn").disabled = false;
+    showError("Server se connect nahi ho pa raha. Retry ho raha hai...");
+  }
+}
+
+function updateCoinBar(data) {
+  const bar = document.getElementById("coinBar");
+  bar.classList.add("visible");
+
+  document.getElementById("barTicker").textContent = data.ticker;
+
+  const p = data.price;
+  let priceStr = p > 100 ? `$${p.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`
+               : p > 1   ? `$${p.toFixed(4)}`
+               :            `$${p.toFixed(8)}`;
+  document.getElementById("barPrice").textContent = priceStr;
+}
+
+function renderSkeletons() {
+  const grid = document.getElementById("cardsGrid");
+  grid.innerHTML = TIMEFRAMES.map(tf => `
+    <div class="card skeleton loaded" id="card-${tf}">
+      <div class="card-tf">${tf}</div>
+      <div class="card-label">${TF_LABELS[tf]}</div>
+      ${makeIndRow("RSI", null, null, null)}
+      ${makeIndRow("MFI", null, null, null)}
+    </div>
+  `).join("");
+}
+
+function renderCards(data) {
+  const grid = document.getElementById("cardsGrid");
+  grid.innerHTML = "";
+
+  TIMEFRAMES.forEach((tf, i) => {
+    const d = data.results[tf];
+    const card = document.createElement("div");
+    card.className = "card";
+    card.id = `card-${tf}`;
+
+    const rsi = d?.rsi ?? null;
+    const mfi = d?.mfi ?? null;
+    const rsiSig = d?.rsi_signal ?? {text:"N/A",color:"neutral"};
+    const mfiSig = d?.mfi_signal ?? {text:"N/A",color:"neutral"};
+
+    card.innerHTML = `
+      <div class="card-tf">${tf}</div>
+      <div class="card-label">${TF_LABELS[tf]}</div>
+      ${makeIndRow("RSI", rsi, rsiSig, {ob:70,os:30})}
+      ${makeIndRow("MFI", mfi, mfiSig, {ob:80,os:20})}
+    `;
+
+    grid.appendChild(card);
+
+    // Staggered entrance
+    setTimeout(() => card.classList.add("loaded"), i * 120);
+  });
+}
+
+function makeIndRow(name, val, sig, zones) {
+  const dispVal = val !== null ? val.toFixed(2) : "—";
+  const color   = sig?.color ?? "neutral";
+  const sigTxt  = sig?.text  ?? "N/A";
+  const pct     = val !== null ? Math.min(100, Math.max(0, val)) : 0;
+
+  let obMark = "", osMark = "";
+  if (zones) {
+    obMark = `<span class="bar-marker" style="left:${zones.ob}%;color:var(--red)">${zones.ob}</span>`;
+    osMark = `<span class="bar-marker" style="left:${zones.os}%;color:var(--green)">${zones.os}</span>`;
+  }
+
+  return `
+    <div class="ind-row">
+      <div class="ind-header">
+        <span class="ind-name">${name} (14)</span>
+        <span class="ind-value ${color}">${dispVal}</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill ${color}" style="width:${pct}%"></div>
+      </div>
+      <div class="bar-markers">
+        ${osMark}
+        <span class="bar-marker" style="left:50%;color:var(--text-dim)">50</span>
+        ${obMark}
+      </div>
+      <div class="ind-signal ${color}">${sigTxt}</div>
+    </div>
+  `;
+}
+
+function showError(msg) {
+  const el = document.getElementById("statusMsg");
+  el.textContent = "⚠ " + msg;
+  el.classList.add("show");
+}
+
+function hideError() {
+  document.getElementById("statusMsg").classList.remove("show");
+}
+</script>
+</body>
+</html>
